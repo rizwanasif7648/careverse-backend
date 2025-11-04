@@ -4,6 +4,7 @@ const Conversation = require('./Conversation');
 const Message = require('./Message');
 const Assessment = require('./Assessment');
 const Provider = require('./Provider');
+const Embedding = require('./Embedding');
 
 // Define associations
 User.hasMany(Conversation, {
@@ -42,6 +43,25 @@ Assessment.belongsTo(Conversation, {
   as: 'conversation'
 });
 
+// Embedding associations
+User.hasMany(Embedding, {
+  foreignKey: 'user_id',
+  as: 'embeddings'
+});
+Embedding.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+
+Conversation.hasMany(Embedding, {
+  foreignKey: 'conversation_id',
+  as: 'embeddings'
+});
+Embedding.belongsTo(Conversation, {
+  foreignKey: 'conversation_id',
+  as: 'conversation'
+});
+
 // Sync all models
 const syncDatabase = async (options = {}) => {
   try {
@@ -60,5 +80,6 @@ module.exports = {
   Message,
   Assessment,
   Provider,
+  Embedding,
   syncDatabase
 };

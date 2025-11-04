@@ -11,10 +11,8 @@ const startServer = async () => {
     // Initialize database connection
     await initializeDatabase();
 
-    // Sync database models (in development only)
-    if (config.NODE_ENV === 'development') {
-      await syncDatabase({ alter: true });
-    }
+    // Note: We use migrations instead of sync for database schema management
+    // To run migrations: npm run db:migrate
 
     // Start listening
     const server = app.listen(PORT, () => {

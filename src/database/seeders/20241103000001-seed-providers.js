@@ -1,0 +1,130 @@
+'use strict';
+const { v4: uuidv4 } = require('uuid');
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    const providers = [
+      {
+        id: uuidv4(),
+        name: 'Dr. Sarah Johnson',
+        specialty: 'General Practitioner',
+        description: 'Board-certified family medicine physician with 15 years of experience.',
+        address: '123 Main Street',
+        city: 'San Francisco',
+        state: 'CA',
+        zip_code: '94102',
+        country: 'USA',
+        latitude: 37.7749,
+        longitude: -122.4194,
+        phone: '(415) 555-0101',
+        email: 'dr.johnson@healthcare.com',
+        website: 'https://drsarahjohnson.com',
+        rating: 4.8,
+        review_count: 245,
+        is_accepting_new_patients: true,
+        insurance_accepted: JSON.stringify(['Blue Cross', 'Aetna', 'UnitedHealthcare', 'Cigna']),
+        languages: JSON.stringify(['English', 'Spanish']),
+        created_at: new Date(),
+        updated_at: new Date()
+      },
+      {
+        id: uuidv4(),
+        name: 'Dr. Michael Chen',
+        specialty: 'Dermatologist',
+        description: 'Specialized in medical and cosmetic dermatology with expertise in skin cancer detection.',
+        address: '456 Oak Avenue',
+        city: 'San Francisco',
+        state: 'CA',
+        zip_code: '94103',
+        country: 'USA',
+        latitude: 37.7699,
+        longitude: -122.4103,
+        phone: '(415) 555-0102',
+        email: 'dr.chen@skincare.com',
+        website: 'https://drmichaelchen.com',
+        rating: 4.9,
+        review_count: 312,
+        is_accepting_new_patients: true,
+        insurance_accepted: JSON.stringify(['Blue Cross', 'Kaiser', 'Aetna']),
+        languages: JSON.stringify(['English', 'Mandarin']),
+        created_at: new Date(),
+        updated_at: new Date()
+      },
+      {
+        id: uuidv4(),
+        name: 'Dr. Emily Rodriguez',
+        specialty: 'Neurologist',
+        description: 'Expert in treating headaches, migraines, and neurological disorders.',
+        address: '789 Pine Street',
+        city: 'San Francisco',
+        state: 'CA',
+        zip_code: '94104',
+        country: 'USA',
+        latitude: 37.7899,
+        longitude: -122.4044,
+        phone: '(415) 555-0103',
+        email: 'dr.rodriguez@neurocenter.com',
+        website: 'https://dremilyrodriguez.com',
+        rating: 4.7,
+        review_count: 189,
+        is_accepting_new_patients: false,
+        insurance_accepted: JSON.stringify(['UnitedHealthcare', 'Cigna', 'Blue Shield']),
+        languages: JSON.stringify(['English', 'Spanish']),
+        created_at: new Date(),
+        updated_at: new Date()
+      },
+      {
+        id: uuidv4(),
+        name: 'Dr. James Wilson',
+        specialty: 'Cardiologist',
+        description: 'Cardiovascular specialist with focus on preventive cardiology and heart disease management.',
+        address: '321 Elm Boulevard',
+        city: 'San Francisco',
+        state: 'CA',
+        zip_code: '94105',
+        country: 'USA',
+        latitude: 37.7849,
+        longitude: -122.3944,
+        phone: '(415) 555-0104',
+        email: 'dr.wilson@heartcare.com',
+        website: 'https://drjameswilson.com',
+        rating: 4.9,
+        review_count: 421,
+        is_accepting_new_patients: true,
+        insurance_accepted: JSON.stringify(['Blue Cross', 'Aetna', 'UnitedHealthcare', 'Medicare']),
+        languages: JSON.stringify(['English']),
+        created_at: new Date(),
+        updated_at: new Date()
+      },
+      {
+        id: uuidv4(),
+        name: 'Dr. Lisa Patel',
+        specialty: 'Pediatrician',
+        description: 'Compassionate pediatric care for infants, children, and adolescents.',
+        address: '555 Maple Drive',
+        city: 'San Francisco',
+        state: 'CA',
+        zip_code: '94106',
+        country: 'USA',
+        latitude: 37.7649,
+        longitude: -122.4244,
+        phone: '(415) 555-0105',
+        email: 'dr.patel@kidshealthcare.com',
+        website: 'https://drlisapatel.com',
+        rating: 5.0,
+        review_count: 567,
+        is_accepting_new_patients: true,
+        insurance_accepted: JSON.stringify(['Blue Cross', 'Kaiser', 'Aetna', 'Medicaid']),
+        languages: JSON.stringify(['English', 'Hindi', 'Gujarati']),
+        created_at: new Date(),
+        updated_at: new Date()
+      }
+    ];
+
+    await queryInterface.bulkInsert('providers', providers);
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    await queryInterface.bulkDelete('providers', null, {});
+  }
+};

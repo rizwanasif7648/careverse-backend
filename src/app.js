@@ -13,6 +13,7 @@ const authRoutes = require('./routes/auth.routes');
 const chatRoutes = require('./routes/chat.routes');
 const assessmentRoutes = require('./routes/assessment.routes');
 const providerRoutes = require('./routes/provider.routes');
+const embeddingRoutes = require('./routes/embedding.routes');
 
 // Import error handling middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -71,6 +72,7 @@ app.use(`/api/${config.API_VERSION}/auth`, authRoutes);
 app.use(`/api/${config.API_VERSION}/chat`, chatRoutes);
 app.use(`/api/${config.API_VERSION}/assessments`, assessmentRoutes);
 app.use(`/api/${config.API_VERSION}/providers`, providerRoutes);
+app.use(`/api/${config.API_VERSION}/embeddings`, embeddingRoutes);
 
 // 404 handler
 app.use((req, res) => {

@@ -1,17 +1,22 @@
 const { Sequelize } = require('sequelize');
-const config = require('./config');
+require('dotenv').config();
 
-// Create Sequelize instance
+// Create Sequelize instance directly from environment variables
 const sequelize = new Sequelize(
-  config.database.database,
-  config.database.username,
-  config.database.password,
+  process.env.DB_NAME || 'careverse_db',
+  process.env.DB_USER || 'postgres',
+  process.env.DB_PASSWORD || '',
   {
-    host: config.database.host,
-    port: config.database.port,
-    dialect: config.database.dialect,
-    logging: config.database.logging,
-    pool: config.database.pool,
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    dialect: process.env.DB_DIALECT || 'postgres',
+    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+    pool: {
+      max: 10,
+      min: 0,
+      acquire: 30000,
+      idle: 10000
+    },
     define: {
       timestamps: true,
       underscored: true,
