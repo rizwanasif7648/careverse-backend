@@ -43,7 +43,8 @@ const Conversation = sequelize.define('Conversation', {
   }
 }, {
   tableName: 'conversations',
-  timestamps: true
+  timestamps: true,
+  underscored: true
 });
 
 module.exports = Conversation;
