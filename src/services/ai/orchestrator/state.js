@@ -32,7 +32,9 @@ const AssessmentStateAnnotation = Annotation.Root({
       latitude: null,
       longitude: null,
       city: null,
-      state: null
+      state: null,
+      country: null,
+      countryCode: null
     })
   }),
   
@@ -127,6 +129,42 @@ const AssessmentStateAnnotation = Annotation.Root({
   retryCount: Annotation({
     reducer: (prev, next) => next ?? prev,
     default: () => {}
+  }),
+  
+  // Tool metrics tracking
+  toolMetrics: Annotation({
+    reducer: (prev, next) => {
+      // Merge tool metrics from different agents
+      const prevMetrics = prev || {
+        webSearchInvocations: 0,
+        webSearchExecutionTimeMs: 0,
+        webSearchCacheHits: 0,
+        webSearchCacheMisses: 0,
+        webSearchErrors: 0,
+        webSearchRetries: 0
+      };
+      
+      if (next) {
+        return {
+          webSearchInvocations: (prevMetrics.webSearchInvocations || 0) + (next.webSearchInvocations || 0),
+          webSearchExecutionTimeMs: (prevMetrics.webSearchExecutionTimeMs || 0) + (next.webSearchExecutionTimeMs || 0),
+          webSearchCacheHits: (prevMetrics.webSearchCacheHits || 0) + (next.webSearchCacheHits || 0),
+          webSearchCacheMisses: (prevMetrics.webSearchCacheMisses || 0) + (next.webSearchCacheMisses || 0),
+          webSearchErrors: (prevMetrics.webSearchErrors || 0) + (next.webSearchErrors || 0),
+          webSearchRetries: (prevMetrics.webSearchRetries || 0) + (next.webSearchRetries || 0)
+        };
+      }
+      
+      return prevMetrics;
+    },
+    default: () => ({
+      webSearchInvocations: 0,
+      webSearchExecutionTimeMs: 0,
+      webSearchCacheHits: 0,
+      webSearchCacheMisses: 0,
+      webSearchErrors: 0,
+      webSearchRetries: 0
+    })
   })
 });
 

@@ -83,6 +83,17 @@ module.exports = {
     apiKey: process.env.GOOGLE_PLACES_API_KEY
   },
 
+  // Web Search APIs
+  webSearch: {
+    serperApiKey: process.env.SERPER_API_KEY,
+    braveApiKey: process.env.BRAVE_SEARCH_API_KEY,
+    timeoutMs: parseInt(process.env.WEB_SEARCH_TIMEOUT_MS, 10) || 10000,
+    maxRetries: parseInt(process.env.WEB_SEARCH_MAX_RETRIES, 10) || 2,
+    cacheEnabled: process.env.WEB_SEARCH_CACHE_ENABLED === 'true',
+    cacheTtlHours: parseInt(process.env.WEB_SEARCH_CACHE_TTL_HOURS, 10) || 6,
+    maxResults: parseInt(process.env.WEB_SEARCH_MAX_RESULTS, 10) || 5
+  },
+
   // Email Configuration
   email: {
     host: process.env.SMTP_HOST,

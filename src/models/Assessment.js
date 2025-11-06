@@ -125,6 +125,20 @@ const Assessment = sequelize.define('Assessment', {
     type: DataTypes.INTEGER,
     // Total tokens used across all AI agents
     field: 'tokens_used'
+  },
+  toolMetrics: {
+    type: DataTypes.JSON,
+    // Tool usage metrics (web search invocations, cache hits, etc.)
+    field: 'tool_metrics',
+    defaultValue: {
+      webSearchInvocations: 0,
+      webSearchExecutionTimeMs: 0,
+      webSearchCacheHits: 0,
+      webSearchCacheMisses: 0,
+      webSearchErrors: 0,
+      webSearchRetries: 0,
+      cacheHitRate: '0%'
+    }
   }
 }, {
   tableName: 'assessments',

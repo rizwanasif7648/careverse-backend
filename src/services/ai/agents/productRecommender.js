@@ -8,6 +8,7 @@ const config = require('../../../config/config');
 const logger = require('../../../config/logger');
 const redisService = require('../../cache/redis.service');
 const productSearchService = require('../tools/productSearch');
+const WebSearchTool = require('../tools/webSearchTool');
 const {
   recommendProductsFunction,
   createProductRecommendationMessages,
@@ -23,20 +24,23 @@ class ProductRecommenderAgent {
     this.maxRetries = 2;
     this.redis = redisService;
     this.cacheTTL = 86400; // 24 hours in seconds
+    this.webSearchTool = new WebSearchTool();
   }
 
   /**
    * Recommend products for a condition
    * @param {Object} condition - Diagnosed condition from MedicalAnalyzerAgent
    * @param {Array} symptoms - Patient symptoms
+   * @param {Object} location - User location context
    * @returns {Promise<Object>} Product recommendations with token usage
    */
-  async recommend(condition, symptoms) {
+  async recommend(condition, symptoms, location = null) {
     const startTime = Date.now();
     
     logger.info('ProductRecommenderAgent: Starting product recommendation', {
       condition: condition.name,
       symptomCount: symptoms.length,
+      location: location?.country || 'unknown',
       startTime: new Date(startTime).toISOString()
     });
 
@@ -59,7 +63,15 @@ class ProductRecommenderAgent {
         
         return {
           products: cachedProducts,
-          tokensUsed: 0 // No tokens used for cached results
+          tokensUsed: 0, // No tokens used for cached results
+          toolMetrics: {
+            webSearchInvocations: 0,
+            webSearchExecutionTimeMs: 0,
+            webSearchCacheHits: 0,
+            webSearchCacheMisses: 0,
+            webSearchErrors: 0,
+            webSearchRetries: 0
+          }
         };
       }
 
@@ -70,9 +82,10 @@ class ProductRecommenderAgent {
 
       // Step 3: Enrich products with purchase links and images
       const enrichStartTime = Date.now();
-      const enrichedProducts = await this.enrichProductLinks(result.products);
+      const enrichmentResult = await this.enrichProductLinks(result.products, location);
       const enrichTime = Date.now() - enrichStartTime;
-      result.products = enrichedProducts;
+      result.products = enrichmentResult.products;
+      const toolMetrics = enrichmentResult.toolMetrics;
 
       // Step 4: Cache the results
       await this.cacheProducts(condition.name, result.products);
@@ -88,10 +101,14 @@ class ProductRecommenderAgent {
           cacheCheckMs: cacheTime,
           generationMs: generationTime,
           enrichmentMs: enrichTime
-        }
+        },
+        toolMetrics
       });
 
-      return result;
+      return {
+        ...result,
+        toolMetrics
+      };
     } catch (error) {
       const executionTime = Date.now() - startTime;
       
@@ -236,28 +253,40 @@ class ProductRecommenderAgent {
   /**
    * Enrich products with purchase links and images
    * @param {Array} products - Products to enrich
-   * @returns {Promise<Array>} Enriched products
+   * @param {Object} location - User location context
+   * @returns {Promise<Object>} Object with enriched products and tool metrics
    */
-  async enrichProductLinks(products) {
+  async enrichProductLinks(products, location) {
     try {
       logger.info('ProductRecommenderAgent: Enriching product links', {
-        productCount: products.length
+        productCount: products.length,
+        location: location?.country || 'unknown'
       });
 
-      const enrichedProducts = await productSearchService.enrichProducts(products);
+      const enrichmentResult = await productSearchService.enrichProducts(products, location, this.webSearchTool);
 
       logger.info('ProductRecommenderAgent: Product links enriched', {
-        enrichedCount: enrichedProducts.filter(p => p.purchaseUrl).length
+        enrichedCount: enrichmentResult.products.filter(p => p.purchaseUrl).length
       });
 
-      return enrichedProducts;
+      return enrichmentResult;
     } catch (error) {
       logger.warn('ProductRecommenderAgent: Failed to enrich product links', {
         error: error.message
       });
       
       // Return original products if enrichment fails
-      return products;
+      return {
+        products,
+        toolMetrics: {
+          webSearchInvocations: 0,
+          webSearchExecutionTimeMs: 0,
+          webSearchCacheHits: 0,
+          webSearchCacheMisses: 0,
+          webSearchErrors: 0,
+          webSearchRetries: 0
+        }
+      };
     }
   }
 

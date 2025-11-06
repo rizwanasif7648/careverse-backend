@@ -62,7 +62,8 @@
 
 ### Assessments (Protected)
 - **GET** `/api/v1/assessments` - Get user assessments
-- **POST** `/api/v1/assessments/generate` - Generate assessment
+- **POST** `/api/v1/assessments/generate` - Generate AI-powered assessment
+- **GET** `/api/v1/assessments/:id` - Get assessment by ID
 
 ### Providers (Protected)
 - **GET** `/api/v1/providers/search` - Search healthcare providers
@@ -95,6 +96,44 @@ The collection includes automatic token management:
 - Refresh token saved to `{{refreshToken}}`
 - All protected endpoints use `{{token}}` automatically
 
+## 🤖 AI Assessment Generation Workflow
+
+### Quick Start: Generate Your First Assessment
+
+1. **Send Messages** (Chat → Send Message)
+   - Send at least 2 messages describing your symptoms
+   - Example: "I have been having frequent headaches lately. They usually happen 2-3 times per week and last for several hours."
+   - The conversation ID is automatically saved to `{{conversationId}}`
+
+2. **Generate Assessment** (Assessments → Generate Assessment)
+   - Click **Send** (uses saved `{{conversationId}}`)
+   - Wait 10-15 seconds for AI processing
+   - Assessment ID is automatically saved to `{{assessmentId}}`
+
+3. **View Assessment** (Assessments → Get Assessment by ID)
+   - Click **Send** (uses saved `{{assessmentId}}`)
+   - View complete assessment details
+
+### What You Get in an Assessment
+
+- **Extracted Symptoms:** Structured symptom data with severity, location, duration
+- **Possible Condition:** AI diagnosis with confidence score and description
+- **Healthcare Providers:** Up to 10 nearby specialists with ratings and booking links
+- **Product Recommendations:** Up to 8 medications and remedies (OTC and prescription)
+- **Next Steps:** 3-5 actionable recommendations
+- **Medical Disclaimer:** Important safety information
+
+### Assessment Test Scripts
+
+The collection includes automated tests that verify:
+- Response structure and required fields
+- Data types and value ranges
+- Array lengths (3-5 next steps, up to 10 providers, up to 8 products)
+- Confidence score validation (0.0 to 1.0)
+- Execution time tracking
+
+View test results in the **Test Results** tab after sending a request.
+
 ## 📋 Password Requirements
 
 Passwords must meet these criteria:
@@ -109,12 +148,21 @@ Example: `SecurePass@123`
 ## 🛠️ Tips
 
 1. **Check Environment**: Make sure correct environment is selected (top right dropdown)
-2. **View Variables**: Click environment name to see saved tokens
+2. **View Variables**: Click environment name to see saved tokens and IDs
+   - `{{token}}` - Access token (auto-saved)
+   - `{{refreshToken}}` - Refresh token (auto-saved)
+   - `{{conversationId}}` - Current conversation (auto-saved)
+   - `{{assessmentId}}` - Latest assessment (auto-saved)
 3. **Multiple Users**: Change email in request body to test with different users
 4. **Token Expiry**: 
    - Access tokens expire in 7 days
    - Refresh tokens expire in 30 days
    - Use refresh token endpoint to get new access token
+5. **Assessment Generation**:
+   - Requires at least 2 user messages in conversation
+   - Takes 10-15 seconds to complete
+   - User profile must have location data for provider recommendations
+6. **Test Scripts**: Check the **Test Results** tab to see automated validation
 
 ## 🐛 Troubleshooting
 

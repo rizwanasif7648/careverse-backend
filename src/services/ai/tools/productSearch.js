@@ -1,77 +1,191 @@
 /**
  * Product Search Service
- * Enriches product recommendations with purchase links and images
+ * Enriches product recommendations with purchase links using dynamic web search
  */
 
-const axios = require('axios');
-const config = require('../../../config/config');
 const logger = require('../../../config/logger');
 
 class ProductSearchService {
   constructor() {
-    // Configure API endpoints (can be extended with actual API keys)
-    this.amazonApiKey = config.amazon?.apiKey || null;
     this.searchTimeout = 5000; // 5 second timeout
   }
 
   /**
-   * Enrich products with purchase links and images
+   * Enrich products with purchase links and images using web search
    * @param {Array} products - Products to enrich
-   * @returns {Promise<Array>} Enriched products
+   * @param {Object} location - User location context
+   * @param {Object} webSearchTool - Web search tool instance
+   * @returns {Promise<Object>} Object with enriched products and tool metrics
    */
-  async enrichProducts(products) {
-    logger.info('ProductSearchService: Enriching products', {
-      productCount: products.length
+  async enrichProducts(products, location = null, webSearchTool = null) {
+    logger.info('ProductSearchService: Enriching products with web search', {
+      productCount: products.length,
+      location: location?.country || 'unknown',
+      hasWebSearchTool: !!webSearchTool
     });
 
+    // Initialize tool metrics
+    const toolMetrics = {
+      webSearchInvocations: 0,
+      webSearchExecutionTimeMs: 0,
+      webSearchCacheHits: 0,
+      webSearchCacheMisses: 0,
+      webSearchErrors: 0,
+      webSearchRetries: 0
+    };
+
     try {
+      // If no web search tool or location, return products with fallback URLs
+      if (!webSearchTool || !location) {
+        logger.warn('ProductSearchService: Missing web search tool or location, using fallback URLs');
+        return {
+          products: products.map(product => ({
+            ...product,
+            purchaseUrl: this.generateFallbackUrl(product.name),
+            imageUrl: null
+          })),
+          toolMetrics
+        };
+      }
+
       // Enrich products in parallel
-      const enrichedProducts = await Promise.all(
-        products.map(product => this.enrichSingleProduct(product))
+      const enrichmentResults = await Promise.all(
+        products.map(product => this.enrichSingleProduct(product, location, webSearchTool))
       );
 
-      logger.info('ProductSearchService: Products enriched', {
-        successCount: enrichedProducts.filter(p => p.purchaseUrl).length
+      // Aggregate tool metrics from all product enrichments
+      enrichmentResults.forEach(result => {
+        if (result.metrics) {
+          toolMetrics.webSearchInvocations += result.metrics.webSearchInvocations || 0;
+          toolMetrics.webSearchExecutionTimeMs += result.metrics.webSearchExecutionTimeMs || 0;
+          toolMetrics.webSearchCacheHits += result.metrics.webSearchCacheHits || 0;
+          toolMetrics.webSearchCacheMisses += result.metrics.webSearchCacheMisses || 0;
+          toolMetrics.webSearchErrors += result.metrics.webSearchErrors || 0;
+          toolMetrics.webSearchRetries += result.metrics.webSearchRetries || 0;
+        }
       });
 
-      return enrichedProducts;
+      const enrichedProducts = enrichmentResults.map(result => result.product);
+
+      logger.info('ProductSearchService: Products enriched', {
+        successCount: enrichedProducts.filter(p => p.purchaseUrl).length,
+        toolMetrics
+      });
+
+      return {
+        products: enrichedProducts,
+        toolMetrics
+      };
     } catch (error) {
       logger.error('ProductSearchService: Failed to enrich products', {
         error: error.message
       });
       
-      // Return original products if enrichment fails
-      return products;
+      // Return original products with fallback URLs if enrichment fails
+      return {
+        products: products.map(product => ({
+          ...product,
+          purchaseUrl: this.generateFallbackUrl(product.name),
+          imageUrl: null
+        })),
+        toolMetrics
+      };
     }
   }
 
   /**
-   * Enrich a single product with purchase link and image
+   * Enrich a single product with purchase link using web search
    * @param {Object} product - Product to enrich
-   * @returns {Promise<Object>} Enriched product
+   * @param {Object} location - User location context
+   * @param {Object} webSearchTool - Web search tool instance
+   * @returns {Promise<Object>} Object with enriched product and metrics
    */
-  async enrichSingleProduct(product) {
+  async enrichSingleProduct(product, location, webSearchTool) {
+    const metrics = {
+      webSearchInvocations: 0,
+      webSearchExecutionTimeMs: 0,
+      webSearchCacheHits: 0,
+      webSearchCacheMisses: 0,
+      webSearchErrors: 0,
+      webSearchRetries: 0
+    };
+
     try {
-      // Try to find product on Amazon
-      const amazonData = await this.searchAmazon(product.name);
+      // Build location-aware search query
+      const searchQuery = this.buildProductSearchQuery(product.name, location);
       
-      if (amazonData) {
+      logger.debug('ProductSearchService: Searching for product', {
+        productName: product.name,
+        searchQuery,
+        location: location.country
+      });
+
+      // Perform web search
+      metrics.webSearchInvocations++;
+      const searchResults = await webSearchTool.search({
+        query: searchQuery,
+        location: {
+          country: location.country || location.countryName,
+          city: location.city,
+          countryCode: location.country
+        },
+        maxResults: 3
+      });
+
+      // Track metrics from search result
+      if (searchResults.metadata) {
+        metrics.webSearchExecutionTimeMs += searchResults.metadata.executionTimeMs || 0;
+        
+        if (searchResults.metadata.cached) {
+          metrics.webSearchCacheHits++;
+        } else {
+          metrics.webSearchCacheMisses++;
+        }
+        
+        metrics.webSearchRetries += searchResults.metadata.retryCount || 0;
+      }
+
+      // Extract purchase URL from search results
+      if (searchResults.success && searchResults.results.length > 0) {
+        const purchaseUrl = this.extractPurchaseUrl(searchResults.results);
+        
+        logger.debug('ProductSearchService: Found purchase URL', {
+          productName: product.name,
+          purchaseUrl,
+          resultsCount: searchResults.results.length
+        });
+
         return {
-          ...product,
-          purchaseUrl: amazonData.url,
-          imageUrl: amazonData.imageUrl
+          product: {
+            ...product,
+            purchaseUrl: purchaseUrl || this.generateFallbackUrl(product.name),
+            imageUrl: null // Images can be added in future enhancement
+          },
+          metrics
         };
       }
 
+      // Track error if search failed
+      if (!searchResults.success) {
+        metrics.webSearchErrors++;
+      }
+
       // Fallback: Generate generic search URL
-      const fallbackUrl = this.generateFallbackUrl(product.name);
-      
+      logger.debug('ProductSearchService: No search results, using fallback URL', {
+        productName: product.name
+      });
+
       return {
-        ...product,
-        purchaseUrl: fallbackUrl,
-        imageUrl: null
+        product: {
+          ...product,
+          purchaseUrl: this.generateFallbackUrl(product.name),
+          imageUrl: null
+        },
+        metrics
       };
     } catch (error) {
+      metrics.webSearchErrors++;
+      
       logger.warn('ProductSearchService: Failed to enrich product', {
         productName: product.name,
         error: error.message
@@ -79,127 +193,77 @@ class ProductSearchService {
       
       // Return product with fallback URL
       return {
-        ...product,
-        purchaseUrl: this.generateFallbackUrl(product.name),
-        imageUrl: null
+        product: {
+          ...product,
+          purchaseUrl: this.generateFallbackUrl(product.name),
+          imageUrl: null
+        },
+        metrics
       };
     }
   }
 
   /**
-   * Search for product on Amazon
+   * Build location-aware product search query
    * @param {string} productName - Name of the product
-   * @returns {Promise<Object|null>} Amazon product data or null
+   * @param {Object} location - User location
+   * @returns {string} Search query
    */
-  async searchAmazon(productName) {
-    try {
-      // If Amazon API key is not configured, skip API call
-      if (!this.amazonApiKey) {
-        logger.debug('ProductSearchService: Amazon API key not configured, using fallback');
-        return null;
-      }
+  buildProductSearchQuery(productName, location) {
+    // Build query: "buy [product] online [city] [country]"
+    const parts = ['buy', productName, 'online'];
+    
+    if (location.city) {
+      parts.push(location.city);
+    }
+    
+    if (location.country || location.countryName) {
+      parts.push(location.country || location.countryName);
+    }
+    
+    return parts.join(' ');
+  }
 
-      // Note: This is a placeholder for actual Amazon Product API integration
-      // In production, you would use Amazon Product Advertising API
-      // For now, we'll return null to use fallback URLs
-      
-      logger.debug('ProductSearchService: Amazon API integration not implemented, using fallback');
-      return null;
-
-      // Example implementation with Amazon Product API:
-      // const response = await axios.get('https://api.amazon.com/products/search', {
-      //   params: {
-      //     keywords: productName,
-      //     apiKey: this.amazonApiKey
-      //   },
-      //   timeout: this.searchTimeout
-      // });
-      //
-      // if (response.data && response.data.items && response.data.items.length > 0) {
-      //   const item = response.data.items[0];
-      //   return {
-      //     url: item.detailPageURL,
-      //     imageUrl: item.images?.primary?.large?.url || null
-      //   };
-      // }
-      //
-      // return null;
-    } catch (error) {
-      logger.warn('ProductSearchService: Amazon search failed', {
-        productName,
-        error: error.message
-      });
+  /**
+   * Extract purchase URL from search results
+   * @param {Array} results - Search results
+   * @returns {string|null} Purchase URL
+   */
+  extractPurchaseUrl(results) {
+    if (!results || results.length === 0) {
       return null;
     }
+
+    // Prioritize known e-commerce domains
+    const ecommerceDomains = [
+      'amazon.com', 'amazon.co.uk', 'amazon.in', 'amazon.com.au',
+      'dawaai.pk', '1mg.com', 'netmeds.com', 'pharmeasy.com',
+      'cvs.com', 'walgreens.com', 'boots.com',
+      'chemistwarehouse.com.au', 'priceline.com.au',
+      'shoppers.pk', 'sehat.com.pk'
+    ];
+
+    // First, try to find a result from a known e-commerce domain
+    for (const result of results) {
+      const url = result.url.toLowerCase();
+      if (ecommerceDomains.some(domain => url.includes(domain))) {
+        return result.url;
+      }
+    }
+
+    // If no known e-commerce domain found, return the first result
+    return results[0].url;
   }
 
   /**
    * Generate fallback search URL for product
    * @param {string} productName - Name of the product
-   * @returns {string} Search URL
+   * @returns {string} Generic search URL
    */
   generateFallbackUrl(productName) {
-    // Generate Amazon search URL as fallback
-    const encodedName = encodeURIComponent(productName);
-    return `https://www.amazon.com/s?k=${encodedName}`;
-  }
-
-  /**
-   * Search for product on 1mg (Indian pharmacy)
-   * @param {string} productName - Name of the product
-   * @returns {Promise<Object|null>} 1mg product data or null
-   */
-  async search1mg(productName) {
-    try {
-      // Placeholder for 1mg API integration
-      // This would be useful for Indian market
-      logger.debug('ProductSearchService: 1mg API integration not implemented');
-      return null;
-    } catch (error) {
-      logger.warn('ProductSearchService: 1mg search failed', {
-        productName,
-        error: error.message
-      });
-      return null;
-    }
-  }
-
-  /**
-   * Search for product on CVS
-   * @param {string} productName - Name of the product
-   * @returns {Promise<Object|null>} CVS product data or null
-   */
-  async searchCVS(productName) {
-    try {
-      // Placeholder for CVS API integration
-      logger.debug('ProductSearchService: CVS API integration not implemented');
-      return null;
-    } catch (error) {
-      logger.warn('ProductSearchService: CVS search failed', {
-        productName,
-        error: error.message
-      });
-      return null;
-    }
-  }
-
-  /**
-   * Search for product on Walgreens
-   * @param {string} productName - Name of the product
-   * @returns {Promise<Object|null>} Walgreens product data or null
-   */
-  async searchWalgreens(productName) {
-    try {
-      // Placeholder for Walgreens API integration
-      logger.debug('ProductSearchService: Walgreens API integration not implemented');
-      return null;
-    } catch (error) {
-      logger.warn('ProductSearchService: Walgreens search failed', {
-        productName,
-        error: error.message
-      });
-      return null;
-    }
+    // Generate generic Google search URL as fallback
+    const encodedName = encodeURIComponent(`buy ${productName} online`);
+    return `https://www.google.com/search?q=${encodedName}`;
   }
 }
 

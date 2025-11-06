@@ -71,7 +71,7 @@ const extractSymptomsFunction = {
  * @returns {Array} Formatted messages for OpenAI API
  */
 function formatMessagesForExtraction(messages) {
-  const { truncateMessages } = require('../../utils/tokenCounter');
+  const { truncateMessages } = require('../../../utils/tokenCounter');
   
   // Format messages
   const formattedMessages = messages.map(msg => ({

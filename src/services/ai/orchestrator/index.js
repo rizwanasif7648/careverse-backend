@@ -159,7 +159,7 @@ class AssessmentOrchestrator {
         {
           model: this.db.Message,
           as: 'messages',
-          attributes: ['id', 'role', 'content', 'createdAt'],
+          attributes: ['id', 'role', 'content', 'created_at'],
           // Limit to last 20 messages for performance and token optimization
           limit: 20,
           separate: true,
@@ -215,7 +215,9 @@ class AssessmentOrchestrator {
       latitude: location.lat || location.latitude || null,
       longitude: location.lng || location.longitude || null,
       city: location.city || null,
-      state: location.state || null
+      state: location.state || null,
+      country: location.country || null,
+      countryCode: location.countryCode || location.country_code || null
     };
 
     // If location is missing, log warning but don't fail
@@ -230,6 +232,8 @@ class AssessmentOrchestrator {
       userLocation.longitude = userLocation.longitude || -98.5795;
       userLocation.city = userLocation.city || 'Unknown';
       userLocation.state = userLocation.state || 'Unknown';
+      userLocation.country = userLocation.country || 'United States';
+      userLocation.countryCode = userLocation.countryCode || 'US';
     }
 
     logger.info('AssessmentOrchestrator: User location extracted', {
@@ -362,6 +366,22 @@ class AssessmentOrchestrator {
     // Add medication disclaimers to products
     const productsWithDisclaimers = addMedicationDisclaimers(products);
 
+    // Extract tool metrics
+    const toolMetrics = finalState.toolMetrics || {
+      webSearchInvocations: 0,
+      webSearchExecutionTimeMs: 0,
+      webSearchCacheHits: 0,
+      webSearchCacheMisses: 0,
+      webSearchErrors: 0,
+      webSearchRetries: 0
+    };
+
+    // Calculate cache hit rate
+    const totalSearches = toolMetrics.webSearchCacheHits + toolMetrics.webSearchCacheMisses;
+    const cacheHitRate = totalSearches > 0 
+      ? ((toolMetrics.webSearchCacheHits / totalSearches) * 100).toFixed(2) 
+      : 0;
+
     // Extract all agent outputs
     const aggregatedResult = {
       conversationId: finalState.conversationId,
@@ -396,6 +416,12 @@ class AssessmentOrchestrator {
       tokensUsed: finalState.tokensUsed || 0,
       errors: finalState.errors || [],
       
+      // Tool metrics
+      toolMetrics: {
+        ...toolMetrics,
+        cacheHitRate: `${cacheHitRate}%`
+      },
+      
       // Derived fields for API response
       severity: this.calculateSeverity(urgency, confidence),
       confidence,
@@ -412,7 +438,8 @@ class AssessmentOrchestrator {
       productCount: aggregatedResult.products.length,
       nextStepsCount: aggregatedResult.nextSteps.length,
       warningCount: warnings.length,
-      hasEmergencyWarning: warnings.some(w => w.type === 'emergency')
+      hasEmergencyWarning: warnings.some(w => w.type === 'emergency'),
+      toolMetrics: aggregatedResult.toolMetrics
     });
 
     return aggregatedResult;

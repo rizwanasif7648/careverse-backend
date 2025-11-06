@@ -145,11 +145,27 @@ async function executeWithRetry(agentFn, agentName, state, maxRetries = 2) {
         tokensUsed: 0
       }),
       ...(agentName === 'providerMatcher' && {
-        providers: []
+        providers: [],
+        toolMetrics: {
+          webSearchInvocations: 0,
+          webSearchExecutionTimeMs: 0,
+          webSearchCacheHits: 0,
+          webSearchCacheMisses: 0,
+          webSearchErrors: 0,
+          webSearchRetries: 0
+        }
       }),
       ...(agentName === 'productRecommender' && {
         products: [],
-        tokensUsed: 0
+        tokensUsed: 0,
+        toolMetrics: {
+          webSearchInvocations: 0,
+          webSearchExecutionTimeMs: 0,
+          webSearchCacheHits: 0,
+          webSearchCacheMisses: 0,
+          webSearchErrors: 0,
+          webSearchRetries: 0
+        }
       }),
       ...(agentName === 'nextStepsGenerator' && {
         nextSteps: [],
@@ -243,23 +259,25 @@ async function providerMatcherNode(state) {
   
   const result = await executeWithRetry(
     async () => {
-      const providers = await providerMatcher.findProviders({
+      const agentResult = await providerMatcher.findProviders({
         specialty: state.condition.requiredSpecialty,
         location: state.userLocation
       });
       
       return {
-        providers: providers
+        providers: agentResult.providers,
+        toolMetrics: agentResult.toolMetrics
       };
     },
     'providerMatcher',
     state
   );
   
-  // Accumulate errors (no tokens for this agent)
+  // Accumulate errors and tool metrics
   return {
     ...result,
-    errors: [...(state.errors || []), ...(result.errors || [])]
+    errors: [...(state.errors || []), ...(result.errors || [])],
+    toolMetrics: result.toolMetrics
   };
 }
 
@@ -274,23 +292,26 @@ async function productRecommenderNode(state) {
     async () => {
       const agentResult = await productRecommender.recommend(
         state.condition,
-        state.symptoms
+        state.symptoms,
+        state.userLocation
       );
       
       return {
         products: agentResult.products,
-        tokensUsed: agentResult.tokensUsed
+        tokensUsed: agentResult.tokensUsed,
+        toolMetrics: agentResult.toolMetrics
       };
     },
     'productRecommender',
     state
   );
   
-  // Accumulate tokens and errors
+  // Accumulate tokens, errors, and tool metrics
   return {
     ...result,
     tokensUsed: (state.tokensUsed || 0) + (result.tokensUsed || 0),
-    errors: [...(state.errors || []), ...(result.errors || [])]
+    errors: [...(state.errors || []), ...(result.errors || [])],
+    toolMetrics: result.toolMetrics
   };
 }
 

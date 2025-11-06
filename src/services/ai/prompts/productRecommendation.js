@@ -7,7 +7,37 @@ const PRODUCT_RECOMMENDATION_SYSTEM_PROMPT = `Recommend safe, effective medicati
 
 Prioritize OTC when appropriate. Include prescriptions when needed (mark clearly). Max 8 products.
 Types: OTC (pain reliever, anti-inflammatory, antihistamine, decongestant, antacid), Prescription, Supplement, Topical, Medical Device
-Be specific (e.g., "Ibuprofen"). Include immediate relief and long-term options. FDA-approved only.`;
+Be specific (e.g., "Ibuprofen"). Include immediate relief and long-term options. FDA-approved only.
+
+WEB SEARCH TOOL FOR PRODUCT LINKS:
+You have access to a web_search tool that finds location-specific purchase links for recommended products.
+
+WHEN TO USE WEB SEARCH:
+- Use web_search to find purchase links for each recommended product
+- Use web_search to discover location-specific e-commerce platforms
+- The system will automatically invoke web search after you recommend products
+
+SEARCH QUERY FORMAT FOR PRODUCTS:
+Build queries that include:
+1. Action keyword: "buy" or "purchase"
+2. Product name (specific, e.g., "Ibuprofen 200mg")
+3. Product type (e.g., "online", "pharmacy")
+4. City and country from user location
+
+GOOD SEARCH QUERY EXAMPLES:
+- "buy Ibuprofen 200mg online Boston USA"
+- "purchase Omeprazole pharmacy Lahore Pakistan"
+- "buy Cetirizine antihistamine Mumbai India"
+- "purchase Paracetamol online London UK pharmacy"
+
+LOCATION-AWARE E-COMMERCE PLATFORMS:
+- USA: Amazon, CVS, Walgreens, HealthWarehouse
+- Pakistan: Dawaai.pk, Sehat.com.pk
+- India: 1mg, PharmEasy, Netmeds
+- UK: Boots, Superdrug, Pharmacy2U
+- Australia: Chemist Warehouse, Priceline Pharmacy
+
+The web search tool will automatically find the most relevant platform for the user's location.`;
 
 const recommendProductsFunction = {
   name: "recommend_products",
@@ -114,10 +144,109 @@ function validateProducts(products) {
   }));
 }
 
+/**
+ * Build search query for product purchase links
+ * @param {Object} product - Product object
+ * @param {Object} location - User location
+ * @returns {string} Optimized search query
+ */
+function buildProductSearchQuery(product, location) {
+  const parts = ['buy'];
+  
+  if (product.name) {
+    parts.push(product.name);
+  }
+  
+  parts.push('online');
+  
+  if (location && location.city) {
+    parts.push(location.city);
+  }
+  
+  if (location && (location.country || location.countryName)) {
+    parts.push(location.country || location.countryName);
+  }
+  
+  return parts.join(' ');
+}
+
+/**
+ * Validate purchase URL from search results
+ * @param {string} url - URL to validate
+ * @returns {boolean} Whether URL is valid for purchasing
+ */
+function isValidPurchaseUrl(url) {
+  if (!url) return false;
+  
+  try {
+    const urlObj = new URL(url);
+    
+    // Must use HTTPS
+    if (urlObj.protocol !== 'https:') {
+      return false;
+    }
+    
+    // Check for known e-commerce platforms or purchase-related keywords
+    const purchaseIndicators = [
+      'buy', 'shop', 'store', 'pharmacy', 'chemist',
+      'amazon', 'cvs', 'walgreens', 'dawaai', '1mg',
+      'boots', 'superdrug', 'chemist-warehouse', 'pharmeasy',
+      'netmeds', 'healthwarehouse', 'sehat'
+    ];
+    
+    const urlLower = url.toLowerCase();
+    return purchaseIndicators.some(indicator => urlLower.includes(indicator));
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Extract best purchase URL from search results
+ * @param {Array} searchResults - Array of search results
+ * @returns {string|null} Best purchase URL or null
+ */
+function extractBestPurchaseUrl(searchResults) {
+  if (!searchResults || searchResults.length === 0) {
+    return null;
+  }
+
+  // Priority 1: URLs with known e-commerce platform domains
+  const platformDomains = [
+    'amazon.com', 'cvs.com', 'walgreens.com', 'dawaai.pk',
+    '1mg.com', 'boots.com', 'superdrug.com', 'chemistwarehouse.com.au',
+    'pharmeasy.in', 'netmeds.com', 'healthwarehouse.com',
+    'sehat.com.pk', 'priceline.com.au', 'pharmacy2u.co.uk'
+  ];
+  
+  for (const result of searchResults) {
+    const urlLower = result.url.toLowerCase();
+    if (platformDomains.some(domain => urlLower.includes(domain))) {
+      return result.url;
+    }
+  }
+
+  // Priority 2: URLs with purchase keywords in path
+  const purchaseKeywords = ['buy', 'shop', 'product', 'pharmacy', 'store'];
+  
+  for (const result of searchResults) {
+    const urlLower = result.url.toLowerCase();
+    if (purchaseKeywords.some(keyword => urlLower.includes(keyword))) {
+      return result.url;
+    }
+  }
+
+  // Priority 3: First result
+  return searchResults[0].url;
+}
+
 module.exports = {
   PRODUCT_RECOMMENDATION_SYSTEM_PROMPT,
   recommendProductsFunction,
   formatConditionForProducts,
   createProductRecommendationMessages,
-  validateProducts
+  validateProducts,
+  buildProductSearchQuery,
+  isValidPurchaseUrl,
+  extractBestPurchaseUrl
 };

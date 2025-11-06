@@ -83,7 +83,37 @@
       "name": "Chat",
       "item": [
         {
-          "name": "Send Message",
+          "name": "Start New Conversation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Auto-save conversation ID for future messages",
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.conversation && jsonData.data.conversation.id) {",
+                  "        pm.collectionVariables.set('conversationId', jsonData.data.conversation.id);",
+                  "        console.log('Conversation ID saved:', jsonData.data.conversation.id);",
+                  "    }",
+                  "}",
+                  "",
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has conversation and message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.have.property('conversation');",
+                  "    pm.expect(jsonData.data).to.have.property('message');",
+                  "    pm.expect(jsonData.data.message.role).to.equal('assistant');",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -98,17 +128,97 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"I have been having frequent headaches lately\"\n}"
+              "raw": "{\n  \"message\": \"I have been having frequent headaches lately\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
-              "raw": "{{baseUrl}}/api/v1/chat/message",
+              "raw": "{{baseUrl}}/api/v1/chat/conversations/start",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "chat", "message"]
-            }
-          }
+              "path": ["api", "v1", "chat", "conversations", "start"]
+            },
+            "description": "Start a new conversation with your first message. The AI will respond and the conversation ID will be automatically saved.\n\n**Response includes:**\n- New conversation details (id, title, createdAt)\n- AI assistant's response message\n\n**Next steps:**\n- Use 'Continue Conversation' to add more messages\n- After 2-3 detailed messages, generate an assessment"
+          },
+          "response": []
         },
         {
-          "name": "Get Conversations",
+          "name": "Continue Conversation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has AI message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.have.property('message');",
+                  "    pm.expect(jsonData.data.message.role).to.equal('assistant');",
+                  "    pm.expect(jsonData.data.message.content).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"The pain is usually on the right side of my head and it's throbbing. It lasts for several hours and happens 2-3 times per week.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat/conversations/{{conversationId}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat", "conversations", "{{conversationId}}", "messages"]
+            },
+            "description": "Add a message to an existing conversation. The AI will respond with full context of previous messages.\n\n**Features:**\n- AI remembers all previous messages\n- Asks relevant follow-up questions\n- Detects emergency symptoms automatically\n\n**Tips:**\n- Be specific about symptoms (location, duration, severity)\n- Mention triggers or patterns\n- Answer AI's follow-up questions"
+          },
+          "response": []
+        },
+        {
+          "name": "List Conversations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has conversations array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.conversations).to.be.an('array');",
+                  "    pm.expect(jsonData.data).to.have.property('pagination');",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -118,11 +228,126 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/chat/conversations",
+              "raw": "{{baseUrl}}/api/v1/chat/conversations?page=1&limit=20",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "chat", "conversations"]
+              "path": ["api", "v1", "chat", "conversations"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page (default: 20, max: 100)"
+                }
+              ]
+            },
+            "description": "Get all conversations for the authenticated user. Perfect for displaying in a sidebar.\n\n**Response includes:**\n- Array of conversations (id, title, status, lastMessageAt)\n- Pagination info (total, page, limit, totalPages)\n\n**Sorted by:** Most recent first (lastMessageAt DESC)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Conversation with Messages",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has conversation and messages', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.have.property('conversation');",
+                  "    pm.expect(jsonData.data).to.have.property('messages');",
+                  "    pm.expect(jsonData.data).to.have.property('messageCount');",
+                  "    pm.expect(jsonData.data.messages).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Message count has required fields', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const count = jsonData.data.messageCount;",
+                  "    pm.expect(count).to.have.property('total');",
+                  "    pm.expect(count).to.have.property('current');",
+                  "    pm.expect(count).to.have.property('page');",
+                  "    pm.expect(count).to.have.property('limit');",
+                  "    pm.expect(count).to.have.property('totalPages');",
+                  "});"
+                ]
+              }
             }
-          }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat/conversations/{{conversationId}}?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat", "conversations", "{{conversationId}}"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Messages per page (default: 10, max: 100)"
+                }
+              ]
+            },
+            "description": "Get a single conversation with its messages (paginated).\n\n**Response includes:**\n- Conversation details (id, title, status, timestamps)\n- Array of messages (id, role, content, createdAt)\n- Message count info:\n  - total: Total messages in conversation\n  - current: Messages in current page\n  - page: Current page number\n  - limit: Messages per page\n  - totalPages: Total pages available\n\n**Use for:** Loading conversation history in chat UI"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Conversation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Conversation deleted successfully', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.message).to.include('deleted');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat/conversations/{{conversationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat", "conversations", "{{conversationId}}"]
+            },
+            "description": "Delete a conversation and all its messages.\n\n**Warning:** This action cannot be undone!\n\n**What gets deleted:**\n- The conversation record\n- All messages in the conversation\n\n**Note:** Associated assessments are NOT deleted"
+          },
+          "response": []
         }
       ]
     },
@@ -143,11 +368,103 @@
               "raw": "{{baseUrl}}/api/v1/assessments",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "assessments"]
-            }
-          }
+            },
+            "description": "Retrieve all assessments for the authenticated user. Returns a list of assessment summaries."
+          },
+          "response": []
         },
         {
           "name": "Generate Assessment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Save assessment ID for later use",
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.assessmentId) {",
+                  "        pm.collectionVariables.set('assessmentId', jsonData.data.assessmentId);",
+                  "        console.log('Assessment ID saved:', jsonData.data.assessmentId);",
+                  "    }",
+                  "}",
+                  "",
+                  "// Test response structure",
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has success field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('success');",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Response contains assessment data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('assessmentId');",
+                  "    pm.expect(jsonData.data).to.have.property('possibleCondition');",
+                  "    pm.expect(jsonData.data).to.have.property('nextSteps');",
+                  "    pm.expect(jsonData.data).to.have.property('providers');",
+                  "    pm.expect(jsonData.data).to.have.property('products');",
+                  "});",
+                  "",
+                  "pm.test('Possible condition has required fields', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const condition = jsonData.data.possibleCondition;",
+                  "    pm.expect(condition).to.have.property('name');",
+                  "    pm.expect(condition).to.have.property('description');",
+                  "    pm.expect(condition).to.have.property('commonTriggers');",
+                  "    pm.expect(condition).to.have.property('initialSelfCare');",
+                  "});",
+                  "",
+                  "pm.test('Next steps is an array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.nextSteps).to.be.an('array');",
+                  "    pm.expect(jsonData.data.nextSteps.length).to.be.at.least(3);",
+                  "    pm.expect(jsonData.data.nextSteps.length).to.be.at.most(5);",
+                  "});",
+                  "",
+                  "pm.test('Providers array has valid structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.providers).to.be.an('array');",
+                  "    if (jsonData.data.providers.length > 0) {",
+                  "        const provider = jsonData.data.providers[0];",
+                  "        pm.expect(provider).to.have.property('name');",
+                  "        pm.expect(provider).to.have.property('specialty');",
+                  "        pm.expect(provider).to.have.property('distance');",
+                  "        pm.expect(provider).to.have.property('rating');",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Products array has valid structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.products).to.be.an('array');",
+                  "    if (jsonData.data.products.length > 0) {",
+                  "        const product = jsonData.data.products[0];",
+                  "        pm.expect(product).to.have.property('name');",
+                  "        pm.expect(product).to.have.property('type');",
+                  "        pm.expect(product).to.have.property('isPrescription');",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Confidence score is valid', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.confidence).to.be.a('number');",
+                  "    pm.expect(jsonData.data.confidence).to.be.at.least(0);",
+                  "    pm.expect(jsonData.data.confidence).to.be.at.most(1);",
+                  "});",
+                  "",
+                  "pm.test('Execution time is recorded', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.executionTimeMs).to.be.a('number');",
+                  "    pm.expect(jsonData.data.executionTimeMs).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -162,14 +479,197 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"conversationId\": \"your-conversation-id\"\n}"
+              "raw": "{\n  \"conversationId\": \"{{conversationId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/assessments/generate",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "assessments", "generate"]
+            },
+            "description": "Generate a comprehensive AI-powered health assessment from a conversation history.\n\n**Requirements:**\n- Conversation must have at least 2 user messages\n- User must have location data in profile for provider recommendations\n\n**Processing Time:** 10-15 seconds\n\n**Response includes:**\n- Extracted symptoms with severity and details\n- Possible condition diagnosis with confidence score\n- Up to 10 nearby healthcare provider recommendations\n- Up to 8 product/medication suggestions\n- 3-5 actionable next steps\n- Medical disclaimer\n\n**Note:** Before running this request, make sure to:\n1. Send at least 2 messages in a conversation (use Chat → Send Message)\n2. Save the conversation ID to the {{conversationId}} variable\n3. Ensure your user profile has location data"
+          },
+          "response": [
+            {
+              "name": "Success - Migraine Assessment",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"conversationId\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/assessments/generate",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "v1", "assessments", "generate"]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Assessment generated successfully\",\n  \"data\": {\n    \"assessmentId\": \"f9e8d7c6-b5a4-3210-9876-543210fedcba\",\n    \"possibleCondition\": {\n      \"name\": \"Migraine\",\n      \"description\": \"A neurological condition that can cause multiple symptoms including severe headaches, often accompanied by nausea, vomiting, and sensitivity to light and sound.\",\n      \"commonTriggers\": [\n        \"Stress, hormonal changes, certain foods and drinks\",\n        \"Lack of sleep or changes in sleep patterns\"\n      ],\n      \"initialSelfCare\": [\n        \"Rest in a quiet, dark room\",\n        \"Apply a cold compress to your forehead\",\n        \"Stay hydrated\"\n      ]\n    },\n    \"nextSteps\": [\n      {\n        \"title\": \"Book a Neurologist\",\n        \"description\": \"Find a local specialist\",\n        \"icon\": \"doctor\",\n        \"actionType\": \"view_providers\",\n        \"url\": \"/providers?specialty=Neurologist\"\n      }\n    ],\n    \"providers\": [\n      {\n        \"name\": \"Dr. Evelyn Reed\",\n        \"specialty\": \"Neurologist\",\n        \"distance\": \"2.1 miles away\",\n        \"rating\": 4.9,\n        \"reviewCount\": 125,\n        \"phone\": \"(415) 555-0100\",\n        \"address\": \"123 Medical Plaza, San Francisco, CA\"\n      }\n    ],\n    \"products\": [\n      {\n        \"name\": \"Ibuprofen\",\n        \"type\": \"OTC Pain Reliever\",\n        \"description\": \"For headache relief\",\n        \"isPrescription\": false\n      }\n    ],\n    \"severity\": \"medium\",\n    \"confidence\": 0.85,\n    \"urgency\": \"routine\",\n    \"extractedSymptoms\": [\n      {\n        \"name\": \"Severe headache\",\n        \"severity\": \"severe\",\n        \"location\": \"temples\",\n        \"frequency\": \"2-3 times per week\"\n      }\n    ],\n    \"redFlags\": [],\n    \"disclaimer\": \"This is not a medical diagnosis. Please consult with a healthcare professional.\",\n    \"executionTimeMs\": 12450,\n    \"tokensUsed\": 3250\n  }\n}"
+            },
+            {
+              "name": "Error - Insufficient Data",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"conversationId\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/assessments/generate",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "v1", "assessments", "generate"]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"Insufficient conversation data. Please continue the conversation before generating an assessment.\",\n  \"error\": \"INSUFFICIENT_DATA\"\n}"
             }
-          }
+          ]
+        },
+        {
+          "name": "Get Assessment by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has assessment data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.have.property('assessment');",
+                  "});",
+                  "",
+                  "pm.test('Assessment has all required fields', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const assessment = jsonData.data.assessment;",
+                  "    pm.expect(assessment).to.have.property('id');",
+                  "    pm.expect(assessment).to.have.property('conversationId');",
+                  "    pm.expect(assessment).to.have.property('possibleCondition');",
+                  "    pm.expect(assessment).to.have.property('nextSteps');",
+                  "    pm.expect(assessment).to.have.property('providers');",
+                  "    pm.expect(assessment).to.have.property('products');",
+                  "    pm.expect(assessment).to.have.property('createdAt');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{assessmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{assessmentId}}"]
+            },
+            "description": "Retrieve a previously generated assessment by its ID.\n\n**Requirements:**\n- Assessment must belong to the authenticated user\n\n**Response includes:**\n- Complete assessment data from generation\n- All provider recommendations\n- All product suggestions\n- Next steps and metadata\n- Timestamps (createdAt, updatedAt)\n\n**Note:** Use the {{assessmentId}} variable which is automatically saved after generating an assessment."
+          },
+          "response": [
+            {
+              "name": "Success - Get Assessment",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/assessments/f9e8d7c6-b5a4-3210-9876-543210fedcba",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "v1", "assessments", "f9e8d7c6-b5a4-3210-9876-543210fedcba"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"assessment\": {\n      \"id\": \"f9e8d7c6-b5a4-3210-9876-543210fedcba\",\n      \"conversationId\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"possibleCondition\": {\n        \"name\": \"Tension Headache\",\n        \"description\": \"A common type of headache characterized by a dull, aching sensation all over the head.\",\n        \"commonTriggers\": [\n          \"Stress and anxiety\",\n          \"Poor posture\"\n        ],\n        \"initialSelfCare\": [\n          \"Apply a heating pad to neck and shoulders\",\n          \"Practice good posture\"\n        ]\n      },\n      \"nextSteps\": [\n        {\n          \"title\": \"Consult a Primary Care Physician\",\n          \"description\": \"Schedule an appointment\",\n          \"icon\": \"doctor\",\n          \"actionType\": \"view_providers\"\n        }\n      ],\n      \"providers\": [],\n      \"products\": [],\n      \"severity\": \"low\",\n      \"confidence\": 0.78,\n      \"urgency\": \"routine\",\n      \"extractedSymptoms\": [],\n      \"redFlags\": [],\n      \"disclaimer\": \"This is not a medical diagnosis.\",\n      \"executionTimeMs\": 11230,\n      \"tokensUsed\": 2890,\n      \"createdAt\": \"2024-11-04T09:15:00.000Z\",\n      \"updatedAt\": \"2024-11-04T09:15:00.000Z\"\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/assessments/invalid-id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "v1", "assessments", "invalid-id"]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"Assessment not found or does not belong to user\",\n  \"error\": \"NOT_FOUND\"\n}"
+            }
+          ]
         }
       ]
     },
@@ -238,6 +738,16 @@
     },
     {
       "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "conversationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "assessmentId",
       "value": "",
       "type": "string"
     }

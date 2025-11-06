@@ -8,11 +8,13 @@ const { sequelize } = require('../../../config/database');
 const Provider = require('../../../models/Provider');
 const redisService = require('../../cache/redis.service');
 const GooglePlacesService = require('../tools/googlePlaces');
+const WebSearchTool = require('../tools/webSearchTool');
 const logger = require('../../../config/logger');
 
 class ProviderMatcherAgent {
   constructor() {
     this.googlePlaces = new GooglePlacesService();
+    this.webSearchTool = new WebSearchTool();
     this.defaultRadius = 25; // miles
     this.expandedRadius = 50; // miles
     this.maxProviders = 10;
@@ -58,7 +60,19 @@ class ProviderMatcherAgent {
           cacheTimeMs: cacheTime,
           cacheHit: true
         });
-        return cachedProviders;
+        
+        // Return with empty tool metrics since no web search was performed
+        return {
+          providers: cachedProviders,
+          toolMetrics: {
+            webSearchInvocations: 0,
+            webSearchExecutionTimeMs: 0,
+            webSearchCacheHits: 0,
+            webSearchCacheMisses: 0,
+            webSearchErrors: 0,
+            webSearchRetries: 0
+          }
+        };
       }
 
       // Search database for providers
@@ -123,7 +137,9 @@ class ProviderMatcherAgent {
 
       // Enrich providers with booking links
       const enrichStartTime = Date.now();
-      providers = await this.enrichProvidersWithBookingLinks(providers);
+      const enrichmentResult = await this.enrichProvidersWithBookingLinks(providers, location);
+      providers = enrichmentResult.providers;
+      const toolMetrics = enrichmentResult.toolMetrics;
       const enrichTime = Date.now() - enrichStartTime;
 
       // Rank and limit providers
@@ -143,10 +159,14 @@ class ProviderMatcherAgent {
           dbSearchMs: dbTime,
           googleSearchMs: googleTime,
           enrichmentMs: enrichTime
-        }
+        },
+        toolMetrics
       });
 
-      return providers;
+      return {
+        providers,
+        toolMetrics
+      };
     } catch (error) {
       const executionTime = Date.now() - startTime;
       
@@ -155,7 +175,18 @@ class ProviderMatcherAgent {
         stack: error.stack,
         executionTimeMs: executionTime
       });
-      return [];
+      
+      return {
+        providers: [],
+        toolMetrics: {
+          webSearchInvocations: 0,
+          webSearchExecutionTimeMs: 0,
+          webSearchCacheHits: 0,
+          webSearchCacheMisses: 0,
+          webSearchErrors: 0,
+          webSearchRetries: 0
+        }
+      };
     }
   }
 
@@ -360,39 +391,195 @@ class ProviderMatcherAgent {
   }
 
   /**
-   * Enrich providers with booking links
+   * Enrich providers with booking links using dynamic web search
    * @param {Array} providers - Providers to enrich
-   * @returns {Promise<Array>} Enriched providers
+   * @param {Object} location - User location context
+   * @returns {Promise<Object>} Object with enriched providers and tool metrics
    */
-  async enrichProvidersWithBookingLinks(providers) {
-    // For now, we'll implement a simple enrichment
-    // In production, this would scrape or call APIs for booking links
-    return providers.map(provider => {
-      // Try to construct booking URLs based on common patterns
-      if (provider.website) {
-        // Check if website contains booking keywords
-        const bookingKeywords = ['book', 'appointment', 'schedule'];
-        const hasBooking = bookingKeywords.some(keyword => 
-          provider.website.toLowerCase().includes(keyword)
-        );
-        
-        if (hasBooking) {
-          provider.bookingUrl = provider.website;
-        }
-      }
-
-      // Add common booking platform URLs if available
-      // This is a simplified version - production would use actual scraping/APIs
-      if (!provider.bookingUrl && provider.name) {
-        const encodedName = encodeURIComponent(provider.name);
-        
-        // Construct potential Zocdoc URL
-        provider.profileUrl = provider.profileUrl || 
-          `https://www.zocdoc.com/search/?address=${encodeURIComponent(provider.address)}&insurance_carrier=-1&dr_specialty=&reason_visit=`;
-      }
-
-      return provider;
+  async enrichProvidersWithBookingLinks(providers, location = {}) {
+    const enrichStartTime = Date.now();
+    
+    logger.info('ProviderMatcherAgent: Starting booking link enrichment', {
+      providerCount: providers.length,
+      location: location.city || 'unknown'
     });
+
+    // Initialize tool metrics
+    const toolMetrics = {
+      webSearchInvocations: 0,
+      webSearchExecutionTimeMs: 0,
+      webSearchCacheHits: 0,
+      webSearchCacheMisses: 0,
+      webSearchErrors: 0,
+      webSearchRetries: 0
+    };
+
+    // Process providers in parallel with a limit to avoid overwhelming the API
+    const enrichedProviders = await Promise.all(
+      providers.map(async (provider) => {
+        try {
+          // Build search query for booking links
+          const searchQuery = this.buildBookingSearchQuery(provider, location);
+          
+          logger.debug('ProviderMatcherAgent: Searching for booking link', {
+            provider: provider.name,
+            query: searchQuery
+          });
+
+          // Invoke web search tool
+          toolMetrics.webSearchInvocations++;
+          const searchResult = await this.webSearchTool.search({
+            query: searchQuery,
+            location: {
+              country: location.country || location.countryName || 'US',
+              city: location.city || '',
+              countryCode: location.country || 'US'
+            },
+            maxResults: 3
+          });
+
+          // Track metrics from search result
+          if (searchResult.metadata) {
+            toolMetrics.webSearchExecutionTimeMs += searchResult.metadata.executionTimeMs || 0;
+            
+            if (searchResult.metadata.cached) {
+              toolMetrics.webSearchCacheHits++;
+            } else {
+              toolMetrics.webSearchCacheMisses++;
+            }
+            
+            toolMetrics.webSearchRetries += searchResult.metadata.retryCount || 0;
+          }
+
+          // Extract booking URL from search results
+          if (searchResult.success && searchResult.results.length > 0) {
+            const bookingUrl = this.extractBookingUrl(searchResult.results);
+            
+            if (bookingUrl) {
+              provider.bookingUrl = bookingUrl;
+              provider.profileUrl = searchResult.results[0].url;
+              
+              logger.debug('ProviderMatcherAgent: Booking link found', {
+                provider: provider.name,
+                bookingUrl: bookingUrl
+              });
+            } else {
+              // Fallback to provider website
+              provider.bookingUrl = provider.website || null;
+              provider.profileUrl = provider.website || null;
+              
+              logger.debug('ProviderMatcherAgent: No booking link found, using website', {
+                provider: provider.name,
+                website: provider.website
+              });
+            }
+          } else {
+            // Track error if search failed
+            if (!searchResult.success) {
+              toolMetrics.webSearchErrors++;
+            }
+            
+            // Fallback to provider website if search fails
+            provider.bookingUrl = provider.website || null;
+            provider.profileUrl = provider.website || null;
+            
+            logger.debug('ProviderMatcherAgent: Web search failed, using website', {
+              provider: provider.name,
+              website: provider.website
+            });
+          }
+        } catch (error) {
+          toolMetrics.webSearchErrors++;
+          
+          logger.error('ProviderMatcherAgent: Error enriching provider', {
+            provider: provider.name,
+            error: error.message
+          });
+          
+          // Fallback to provider website on error
+          provider.bookingUrl = provider.website || null;
+          provider.profileUrl = provider.website || null;
+        }
+
+        return provider;
+      })
+    );
+
+    const enrichTime = Date.now() - enrichStartTime;
+    
+    logger.info('ProviderMatcherAgent: Booking link enrichment completed', {
+      providerCount: enrichedProviders.length,
+      enrichmentTimeMs: enrichTime,
+      toolMetrics
+    });
+
+    return {
+      providers: enrichedProviders,
+      toolMetrics
+    };
+  }
+
+  /**
+   * Build search query for finding provider booking links
+   * @param {Object} provider - Provider object
+   * @param {Object} location - User location
+   * @returns {string} Search query
+   */
+  buildBookingSearchQuery(provider, location) {
+    const parts = ['book appointment'];
+    
+    if (provider.name) {
+      parts.push(provider.name);
+    }
+    
+    if (provider.specialty) {
+      parts.push(provider.specialty);
+    }
+    
+    if (location.city) {
+      parts.push(location.city);
+    }
+    
+    if (location.country || location.countryName) {
+      parts.push(location.country || location.countryName);
+    }
+    
+    return parts.join(' ');
+  }
+
+  /**
+   * Extract booking URL from search results
+   * @param {Array} results - Search results
+   * @returns {string|null} Booking URL or null
+   */
+  extractBookingUrl(results) {
+    if (!results || results.length === 0) {
+      return null;
+    }
+
+    // Look for URLs that contain booking-related keywords
+    const bookingKeywords = [
+      'book', 'appointment', 'schedule', 'booking',
+      'zocdoc', 'practo', 'marham', 'doctolib', 'healthengine',
+      'oladoc', 'doctoruna', 'doctoralia'
+    ];
+
+    // First, try to find a result with booking keywords in the URL or title
+    for (const result of results) {
+      const urlLower = result.url.toLowerCase();
+      const titleLower = result.title.toLowerCase();
+      
+      const hasBookingKeyword = bookingKeywords.some(keyword => 
+        urlLower.includes(keyword) || titleLower.includes(keyword)
+      );
+      
+      if (hasBookingKeyword) {
+        return result.url;
+      }
+    }
+
+    // If no booking-specific URL found, return the first result
+    return results[0].url;
   }
 
   /**
