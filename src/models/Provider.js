@@ -92,7 +92,10 @@ const Provider = sequelize.define('Provider', {
   }
 }, {
   tableName: 'providers',
-  timestamps: true
+  timestamps: true,
+  underscored: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
 module.exports = Provider;

@@ -15,7 +15,7 @@ const getUserAssessments = async (req, res, next) => {
 
     const { count, rows: assessments } = await Assessment.findAndCountAll({
       where: { userId },
-      order: [['createdAt', 'DESC']],
+      order: [['created_at', 'DESC']],
       limit: parseInt(limit),
       offset: parseInt(offset),
       include: [{

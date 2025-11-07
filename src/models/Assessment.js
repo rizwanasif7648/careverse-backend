@@ -142,7 +142,10 @@ const Assessment = sequelize.define('Assessment', {
   }
 }, {
   tableName: 'assessments',
-  timestamps: true
+  timestamps: true,
+  underscored: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
 module.exports = Assessment;
