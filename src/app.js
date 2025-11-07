@@ -10,6 +10,7 @@ const { testConnection } = require('./config/database');
 
 // Import routes (we'll create these next)
 const authRoutes = require('./routes/auth.routes');
+const userRoutes = require('./routes/user.routes');
 const chatRoutes = require('./routes/chat.routes');
 const assessmentRoutes = require('./routes/assessment.routes');
 const providerRoutes = require('./routes/provider.routes');
@@ -68,6 +69,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use(`/api/${config.API_VERSION}/auth`, authRoutes);
+app.use(`/api/${config.API_VERSION}/users`, userRoutes);
 app.use(`/api/${config.API_VERSION}/chat`, chatRoutes);
 app.use(`/api/${config.API_VERSION}/assessments`, assessmentRoutes);
 app.use(`/api/${config.API_VERSION}/providers`, providerRoutes);

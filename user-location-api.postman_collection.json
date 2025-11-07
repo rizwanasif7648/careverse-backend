@@ -1,0 +1,366 @@
+{
+  "info": {
+    "name": "User Location API",
+    "description": "API endpoints for managing user location and profile",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('token', response.data.token);",
+                  "    console.log('Token saved:', response.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"Test123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login to get authentication token"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User Location",
+      "item": [
+        {
+          "name": "Update Location (Minimal)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 40.7128,\n  \"longitude\": -74.0060\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/location",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "location"]
+            },
+            "description": "Update user location with only required fields (latitude and longitude)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Location (Complete)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 40.7128,\n  \"longitude\": -74.0060,\n  \"city\": \"New York\",\n  \"state\": \"NY\",\n  \"country\": \"United States\",\n  \"countryCode\": \"US\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/location",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "location"]
+            },
+            "description": "Update user location with all recommended fields for better results"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Location",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/location",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "location"]
+            },
+            "description": "Get current user location"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Location - London",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 51.5074,\n  \"longitude\": -0.1278,\n  \"city\": \"London\",\n  \"country\": \"United Kingdom\",\n  \"countryCode\": \"GB\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/location",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "location"]
+            },
+            "description": "Example: Update location to London, UK"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Location - Toronto",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 43.6532,\n  \"longitude\": -79.3832,\n  \"city\": \"Toronto\",\n  \"state\": \"Ontario\",\n  \"country\": \"Canada\",\n  \"countryCode\": \"CA\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/location",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "location"]
+            },
+            "description": "Example: Update location to Toronto, Canada"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User Profile",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "Get complete user profile including location"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"phone\": \"+1234567890\",\n  \"gender\": \"male\",\n  \"dateOfBirth\": \"1990-01-15\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "Update user profile information"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Validation Tests",
+      "item": [
+        {
+          "name": "Invalid Latitude (Should Fail)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 100,\n  \"longitude\": -74.0060\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/location",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "location"]
+            },
+            "description": "Test validation: latitude must be between -90 and 90"
+          },
+          "response": []
+        },
+        {
+          "name": "Invalid Longitude (Should Fail)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 40.7128,\n  \"longitude\": 200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/location",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "location"]
+            },
+            "description": "Test validation: longitude must be between -180 and 180"
+          },
+          "response": []
+        },
+        {
+          "name": "Missing Required Fields (Should Fail)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city\": \"New York\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/location",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "location"]
+            },
+            "description": "Test validation: latitude and longitude are required"
+          },
+          "response": []
+        },
+        {
+          "name": "No Token (Should Fail)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 40.7128,\n  \"longitude\": -74.0060\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/location",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "location"]
+            },
+            "description": "Test authentication: should fail without token"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
